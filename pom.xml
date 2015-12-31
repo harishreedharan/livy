@@ -21,8 +21,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.cloudera.hue.livy</groupId>
-  <artifactId>livy-main</artifactId>
+  <groupId>com.cloudera.livy</groupId>
+  <artifactId>livy-main_2.10</artifactId>
   <version>0.2.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
@@ -42,18 +42,22 @@
   </organization>
 
   <properties>
-    <hadoop.version>2.6.0-cdh5.4.8</hadoop.version>
-    <spark.version>1.5.1</spark.version>
+    <hadoop.version>2.6.0-cdh5.5.0</hadoop.version>
+    <spark.version>1.5.0-cdh5.5.0</spark.version>
     <commons-codec.version>1.9</commons-codec.version>
     <dispatch.version>0.11.2</dispatch.version>
+    <guava.version>14.0.1</guava.version>
     <httpclient.version>4.5</httpclient.version>
     <httpcore.version>4.4.1</httpcore.version>
     <jackson.version>2.4.4</jackson.version>
-    <jackson-module-scala.version>2.4.4</jackson-module-scala.version>
     <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
     <jetty.version>9.2.10.v20150310</jetty.version>
     <json4s.version>3.2.11</json4s.version>
+    <junit.version>4.11</junit.version>
+    <kryo.version>2.22</kryo.version>
     <metrics.version>3.1.0</metrics.version>
+    <mockito.version>1.9.5</mockito.version>
+    <netty.version>4.0.23.Final</netty.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <py4j.version>0.8.2.1</py4j.version>
     <scala.binary.version>2.10</scala.binary.version>
@@ -62,10 +66,13 @@
     <scalatest.version>2.2.4</scalatest.version>
     <scalatra.version>2.3.0</scalatra.version>
     <snappy-java.version>1.1.1.6</snappy-java.version>
-    <sourceJavaVersion>1.7</sourceJavaVersion>
-    <targetJavaVersion>1.7</targetJavaVersion>
+    <java.version>1.7</java.version>
     <minJavaVersion>1.7</minJavaVersion>
     <maxJavaVersion>1.8</maxJavaVersion>
+    <test.redirectToFile>true</test.redirectToFile>
+
+    <MaxPermGen>512m</MaxPermGen>
+    <CodeCacheSize>512m</CodeCacheSize>
   </properties>
   <repositories>
     <repository>
@@ -109,13 +116,15 @@
   </repositories>
 
   <modules>
+    <module>livy-api</module>
     <module>livy-assembly</module>
     <module>livy-core</module>
     <module>livy-repl</module>
     <module>livy-server</module>
     <module>livy-spark</module>
     <module>livy-yarn</module>
-    <module>livy-remote-spark-client</module>
+    <module>livy-client-local</module>
+    <module>livy-client-http</module>
   </modules>
 
   <dependencyManagement>
@@ -125,6 +134,18 @@
         <groupId>log4j</groupId>
         <artifactId>log4j</artifactId>
         <version>1.2.16</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.esotericsoftware.kryo</groupId>
+        <artifactId>kryo</artifactId>
+        <version>${kryo.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-annotations</artifactId>
+        <version>${jackson.version}</version>
       </dependency>
 
       <dependency>
@@ -142,8 +163,13 @@
       <dependency>
         <groupId>com.fasterxml.jackson.module</groupId>
         <artifactId>jackson-module-scala_${scala.binary.version}</artifactId>
-        <version>${jackson-module-scala.version}</version>
-        <scope>provided</scope>
+        <version>${jackson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>${guava.version}</version>
       </dependency>
 
       <dependency>
@@ -165,15 +191,41 @@
       </dependency>
 
       <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+
+      <dependency>
         <groupId>javax.servlet</groupId>
         <artifactId>javax.servlet-api</artifactId>
         <version>${javax.servlet-api.version}</version>
       </dependency>
 
       <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>${junit.version}</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-all</artifactId>
+        <version>${mockito.version}</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-common</artifactId>
         <version>${hadoop.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>javax.servlet</groupId>
+            <artifactId>servlet-api</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
 
       <dependency>
@@ -216,6 +268,31 @@
         <groupId>org.apache.spark</groupId>
         <artifactId>spark-core_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.eclipse.jetty.orbit</groupId>
+            <artifactId>javax.servlet</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-hive_${scala.binary.version}</artifactId>
+        <version>${spark.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-sql_${scala.binary.version}</artifactId>
+        <version>${spark.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-streaming_${scala.binary.version}</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
       </dependency>
 
       <dependency>
@@ -390,7 +467,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>2.5.1</version>
+          <version>3.3</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -405,7 +482,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-assembly-plugin</artifactId>
-          <version>2.2</version>
+          <version>2.6</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -469,10 +546,27 @@
           </executions>
           <configuration>
             <scalaVersion>${scala.version}</scalaVersion>
+            <recompileMode>incremental</recompileMode>
+            <useZincServer>true</useZincServer>
+            <checkMultipleScalaVersions>false</checkMultipleScalaVersions>
             <args>
+              <arg>-unchecked</arg>
               <arg>-deprecation</arg>
               <arg>-feature</arg>
             </args>
+            <javacArgs>
+              <javacArg>-source</javacArg>
+              <javacArg>${java.version}</javacArg>
+              <javacArg>-target</javacArg>
+              <javacArg>${java.version}</javacArg>
+              <javacArg>-Xlint:unchecked</javacArg>
+            </javacArgs>
+            <jvmArgs>
+              <jvmArg>-Xms1024m</jvmArg>
+              <jvmArg>-Xmx1024m</jvmArg>
+              <jvmArg>-XX:MaxPermSize=${MaxPermGen}</jvmArg>
+              <jvmArg>-XX:ReservedCodeCacheSize=${CodeCacheSize}</jvmArg>
+            </jvmArgs>
           </configuration>
         </plugin>
 
@@ -491,9 +585,16 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.7</version>
+          <version>2.19</version>
           <configuration>
-            <skipTests>true</skipTests>
+            <systemProperties>
+              <java.awt.headless>true</java.awt.headless>
+              <java.io.tmpdir>${project.build.directory}/tmp</java.io.tmpdir>
+            </systemProperties>
+            <redirectTestOutputToFile>${test.redirectToFile}</redirectTestOutputToFile>
+            <useFile>${test.redirectToFile}</useFile>
+            <argLine>-Xmx4096m -XX:MaxPermSize=512m</argLine>
+            <failIfNoTests>false</failIfNoTests>
           </configuration>
         </plugin>
 
@@ -502,9 +603,14 @@
           <artifactId>scalatest-maven-plugin</artifactId>
           <version>1.0</version>
           <configuration>
+            <systemProperties>
+              <java.awt.headless>true</java.awt.headless>
+              <java.io.tmpdir>${project.build.directory}/tmp</java.io.tmpdir>
+            </systemProperties>
             <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
             <junitxml>.</junitxml>
             <filereports>WDF TestSuite.txt</filereports>
+            <argLine>-Xmx4096m -XX:MaxPermSize=512m</argLine>
           </configuration>
           <executions>
             <execution>
@@ -523,10 +629,16 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>${sourceJavaVersion}</source>
-          <target>${targetJavaVersion}</target>
-        </configuration>
+        <executions>
+          <execution>
+            <id>default-compile</id>
+            <phase>none</phase>
+          </execution>
+          <execution>
+            <id>default-testCompile</id>
+            <phase>none</phase>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
@@ -574,6 +686,26 @@
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>1.8</version>
+        <executions>
+          <execution>
+            <id>create-tmp-dir</id>
+            <phase>generate-test-resources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.directory}/tmp" />
+              </target>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
 
